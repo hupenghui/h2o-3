@@ -57,7 +57,8 @@ h2o.init <- function(ip = "localhost", port = 54321, startH2O = TRUE, forceDL = 
                      max_mem_size = NULL, min_mem_size = NULL,
                      ice_root = tempdir(), strict_version_check = TRUE, proxy = NA_character_,
                      https = FALSE, insecure = FALSE, username = NA_character_, password = NA_character_,
-                     cookies = NA_character_, context_path = NA_character_, ignore_config = FALSE) {
+                     cookies = NA_character_, context_path = NA_character_, ignore_config = FALSE,
+                     extra_classpath = NULL) {
 
     if(!(ignore_config)){
       # Check for .h2oconfig file
@@ -138,6 +139,8 @@ h2o.init <- function(ip = "localhost", port = 54321, startH2O = TRUE, forceDL = 
     stop("`cookies` must be a vector of cookie values")
   if(!is.character(context_path) || !nzchar(context_path))
     stop("`context_path` must be a character string or NA_character_")
+  if(!is.null(extra_classpath) && !is.character(extra_classpath))
+    stop("`extra_classpath` must be a character vector or NULL")
 
   if ((R.Version()$major == "3") && (R.Version()$minor == "1.0")) {
     stop("H2O is not compatible with R 3.1.0\n",
@@ -165,8 +168,9 @@ h2o.init <- function(ip = "localhost", port = 54321, startH2O = TRUE, forceDL = 
         nthreads <- 2
       }
       stdout <- .h2o.getTmpFile("stdout")
-      .h2o.startJar(ip = ip, port = port,nthreads = nthreads, max_memory = max_mem_size, min_memory = min_mem_size,
-                    enable_assertions = enable_assertions, forceDL = forceDL, license = license, ice_root = ice_root, stdout=stdout)
+      .h2o.startJar(ip = ip, port = port, nthreads = nthreads, max_memory = max_mem_size, min_memory = min_mem_size,
+                    enable_assertions = enable_assertions, forceDL = forceDL, license = license,
+                    extra_classpath = extra_classpath, ice_root = ice_root, stdout = stdout)
 
       count <- 0L
       cat("Starting H2O JVM and connecting: ")
@@ -490,7 +494,9 @@ h2o.clusterStatus <- function() {
 
 .Last <- function() { if ( .isConnected() ) try(.h2o.__remoteSend("InitID", method = "DELETE"), TRUE)}
 
-.h2o.startJar <- function(ip = "localhost", port = 54321,nthreads = -1, max_memory = NULL, min_memory = NULL, enable_assertions = TRUE, forceDL = FALSE, license = NULL, ice_root, stdout) {
+.h2o.startJar <- function(ip = "localhost", port = 54321, nthreads = -1, max_memory = NULL, min_memory = NULL,
+                          enable_assertions = TRUE, forceDL = FALSE, license = NULL, extra_classpath = NULL,
+                          ice_root, stdout) {
   command <- .h2o.checkJava()
 
   if (! is.null(license)) {
@@ -556,7 +562,8 @@ h2o.clusterStatus <- function() {
   nums <- paste0(sample(0:9, 3,  replace = TRUE),     collapse="")
   name <- paste0("H2O_started_from_R_", gsub("\\s", "_", Sys.info()["user"]),"_",ltrs,nums)
   if(enable_assertions) args <- c(args, "-ea")
-  args <- c(args, "-jar", jar_file)
+  class_path <- paste0(c(jar_file, extra_classpath), collapse=.Platform$path.sep)
+  args <- c(args, "-cp", class_path, "water.H2OApp")
   args <- c(args, "-name", name)
   args <- c(args, "-ip", ip)
   args <- c(args, "-port", port)
